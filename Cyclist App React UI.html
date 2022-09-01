@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8">
+  <title>React app demo</title>
+
+  <!-- Load React. -->
+  <!-- Note: when deploying, replace "development.js" with "production.min.js". -->
+  <script crossorigin="anonymous" src="https://unpkg.com/react@16/umd/react.development.js"></script>
+  <script crossorigin="anonymous" src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
+
+  <!-- Don't use this in production. It does a slow runtime code transformation -->
+  <script crossorigin="anonymous" src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+
+</head>
+
+<body>
+
+  <div id="app">
+  </div>
+
+  <!-- View is the part above -->
+
+  <script type="text/babel">
+/* globals localStorage */
+
+// Feature 13 - Provide Default Values
+const STORAGE_KEY = 'CyclistRecording'
+
+// Feature 2 - Add a Trip
+class Trip{	// eslint-disable-line no-unused-vars
+	constructor(newRecordID, newTrip, date, terrain, distance, targetTimeFinished, estimatedSpeed){
+		this.id = newRecordID
+		this.tripName = newTrip
+		this.date = date
+		this.terrain = terrain
+		this.distance = Number(distance)
+		this.targetTimeFinished = Number(targetTimeFinished)
+		this.estimatedSpeed = Math.round(estimatedSpeed,2)
+		this.done = false // FEATURE 13. Provide default values
+	}
+	
+}
+
+
+// FEATURE 1 - Create a whole which acts as a Facade for parts
+class Cyclist{// eslint-disable-line no-unused-vars
+	constructor(){
+		this.recorded_trip = []
+		// these 8 attibutes are used to support editing a trip
+		this.updateTrip = null
+		this.beforeUpdateTripCache = ''
+		this.beforeUpdateDistanceCache = 0
+		this.beforeUpdateTimeCache = 0
+		this.beforeUpdateDatecache = ''
+		this.beforeUpdateTerrain = ''
+		this.beforeStatus = ''
+		this.estimatedSpeed = 0 // FEATURE 13. Provide default values
+	}
+	// Checks Date format whether its in dd-mm-yyyy
+	checkDate(dated){
+		var separate_date = dated.split('-')
+		var date_separated = new Date(separate_date[2], separate_date[1] - 1, separate_date[0])
+		return date_separated && (date_separated.getMonth() + 1) == separate_date[1]
+	}
+	// Feature 2 - Add a Trip
+	addTrip(newTrip, date, terrain, distance, targetTimeFinished){
+		// Cleansing Data
+		newTrip = newTrip.trim()
+		terrain = terrain.trim()
+		// Formatting Data
+		distance = Number(distance)
+		targetTimeFinished = Number(targetTimeFinished)
+		let isDateValid = this.checkDate(date)
+		// Feature 10 -	Validate inputs
+		if (!newTrip || !isDateValid || !terrain || !distance || !targetTimeFinished){
+			return
+		}
+		// FEATURE 13 - Provide default values
+		const newRecordID = this.recorded_trip.length + 1
+		// FEATURE 11 - A calculation within a part
+		this.estimatedSpeed = distance/targetTimeFinished
+		const aNewRecord = new Trip(newRecordID, newTrip, date, terrain, Number(distance), Number(targetTimeFinished), this.estimatedSpeed)
+		this.recorded_trip.push(aNewRecord)
+	}
+	
+	// FEATURE 15 - Get all trips
+	getAllTrips(){
+		return this.recorded_trip
+	}
+	// FEATURE 12. A calculation across many trips	
+	getDistanceSum(){
+		// FEATURE 13 - Provide default values
+		var sum = 0
+		for(var listlength = 0; listlength < this.recorded_trip.length; listlength++){
+			sum += Number(this.recorded_trip[listlength].distance)
+		}
+		return sum
+	}
+	// Returns the number of trips whether active or inactive
+	getSum(){
+		return this.recorded_trip.length
+	}
+	//  FEATURE 6. Save all trips to LocalStorage
+	saveTrip(){
+		const savingRecord = localStorage.setItem(STORAGE_KEY, JSON.stringify(this.recorded_trip))
+		return savingRecord
+	}
+	// FEATURE 7. Load all trips from LocalStorage
+	unloadTrip(){
+		// FEATURE 13. Provide default values
+		const unloadingJSON = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+		this.recorded_trip = unloadingJSON
+	}
+	// FEATURE 3. Sort trips from highest to lowest distance
+    sortHighestTrip () {
+        this.recorded_trip.sort(function (x, y) {
+          if (x.distance < y.distance) {
+            return 1 // X goes down after Y
+          }
+          if (x.distance > y.distance) {
+            return -1 // X is first then Y
+          }
+          return 0 // x must equal to y - trip order will remain the same
+        })
+      }
+	  // FEATURE 3. Sort Trips from lowest to highest distance
+    sortLowestTrip () {
+        this.recorded_trip.sort(function (x, y) {
+          if (x.distance > y.distance) {
+            return 1
+          }
+          if (x.distance < y.distance) {
+            return -1
+          }
+          return 0 // x must equal to y - trip order will remain the same
+        })
+      }
+	// FEATURE 5. Delete a selected part	  
+	removeTrip(selectedRecordedTrip){
+		const recordIndex = this.recorded_trip.findIndex((trip) => trip.id == selectedRecordedTrip)
+		const removeAction = this.recorded_trip.splice(recordIndex, 1)
+		return removeAction
+	}
+	// FEATURE 12. A calculation across many parts!
+	// FEATURE 4. Filter parts	
+	getTripsTBD(){
+		const activeTrip = this.recorded_trip.filter(trip => trip.done == false)
+		return activeTrip
+	}
+	// FEATURE 12. A calculation across many parts
+	getTripsRemaining(){
+		const remainingTrip = this.getTripsTBD().length
+		return remainingTrip
+	}
+	// FEATURE 12. A calculation across many parts!
+	// FEATURE 4. Filter parts
+	getTripsDone(){
+		const filterToTrue = this.recorded_trip.filter(trip => trip.done == true)
+		return filterToTrue
+	}
+	// FEATURE 12. A calculation across many parts
+	getAllTripsDone(){
+		const setTripToZero = this.getTripsRemaining() === 0
+		return setTripToZero
+	}
+	// Set all active trips to be done
+	tripAllDone(){
+		this.recorded_trip.forEach(function(trip){
+			trip.done = true
+		})
+	}
+	// FEATURE 8. Update/edit a part
+	// copies the trip record
+	updateTripRecord(trip){
+		this.beforeUpdateTripCache = trip.tripName
+		this.beforeUpdateTerrain = trip.terrain
+		this.beforeUpdateDatecache = trip.date
+		this.beforeUpdateDistanceCache = Number(trip.distance)
+		this.beforeUpdateTimeCache = Number(trip.targetTimeFinished)
+		this.beforeStatus = trip.done
+		this.updateTrip = trip
+
+	}
+	// FEATURE 8. Update/edit a part
+	endTripUpdate(trip){
+		// FEATURE 10 - Validate inputs
+		if (!trip){
+			return
+		}
+		this.updateTrip = null
+		// Cleansing Data
+		trip.tripName = trip.tripName.trim()
+		trip.terrain = trip.terrain.trim()
+		// Formatting Data
+		trip.distance = Number(trip.distance)
+		trip.targetTimeFinished = Number(trip.targetTimeFinished)
+		trip.estimatedSpeed = Math.round(Number(trip.distance/trip.targetTimeFinished),2)
+		trip.done = trip.done
+		const checkdate = this.checkDate(trip.date)
+		// Validating Data
+		if (!trip.tripName || !trip.distance || !trip.targetTimeFinished || !trip.terrain || !checkdate){
+			this.removeTrip(trip)
+		}
+	}
+	// Feature 9 - Discard/revert edits to a part
+	discardTripUpdate(trip){
+		this.updateTrip = null
+		trip.tripName = this.beforeUpdateTripCache
+		trip.date = this.beforeUpdateDatecache
+		trip.terrain = this.beforeUpdateTerrain
+		trip.distance = this.beforeUpdateDistanceCache
+		trip.targetTimeFinished = this.beforeUpdateTimeCache
+		trip.done = this.beforeStatus
+	}
+	// Feature 14 - Find a part given a search criterion
+	findTrip(trip){
+		// filter words based in starting letter
+		return this.recorded_trip.filter((plannedTrip) =>{return plannedTrip.tripName.startsWith(trip)})
+	}
+	// FEATURE 5 - Delete a selected part
+	deleteDone(){
+		this.recorded_trip = this.getTripsTBD()
+	}
+}
+
+class Controller {
+    constructor(model){
+        this.model = model
+    }
+    add(name,date,terrain,distance,time){
+        this.model.addTrip(name,date,terrain,distance,time)
+        return this.model.recorded_trip
+    }
+    get(){
+        return this.model.getAllTrips()
+    }
+    getSum(){
+        return this.model.getDistanceSum()
+    }
+    deleter(id){
+		const m = Number(id)
+        this.model.removeTrip(m)
+    }
+    save(){
+        this.model.saveTrip()
+    }
+    load(){
+        this.model.unloadTrip()
+    }
+	sortHigh(){
+		this.model.sortHighestTrip()
+	}
+	sortLow(){
+		this.model.sortLowestTrip()
+	}
+	sum(){
+		return this.model.getSum()
+	}
+	backUp(rec){
+		this.model.updateTripRecord(this.model.recorded_trip[rec])
+	}
+	update(record,name,date,terrain,distance,time,completion){
+		this.model.recorded_trip[record].tripName = name
+		this.model.recorded_trip[record].date = date
+		this.model.recorded_trip[record].terrain = terrain
+		this.model.recorded_trip[record].targetTimeFinished = Number(time)
+		this.model.recorded_trip[record].distance = Number(distance)
+		this.model.recorded_trip[record].done = Boolean(completion)
+		this.model.endTripUpdate(this.model.recorded_trip[record])
+		return this.model.recorded_trip
+	}
+	discard(record){
+		this.model.discardTripUpdate(record)
+		
+	}
+}
+
+class PlannerView extends React.Component{
+    constructor(props){
+        super(props)
+        this.state = {
+            result:[],
+			id: 0,
+			tripName: '',
+			date: '',
+			terrain: '',
+			distance: '',
+			targetTimeFinished: '',
+			done: '',
+			errors: ''
+        }
+        this.handleSubmit = this.handleSubmit.bind(this)
+        this.deleteRecord = this.deleteRecord.bind(this)
+        this.getDistanceSum = this.getDistanceSum.bind(this)
+        this.save = this.save.bind(this)
+        this.load = this.load.bind(this)
+		this.sortHigh = this.sortHigh.bind(this)
+		this.sortLow = this.sortLow.bind(this)
+		this.handleChange = this.handleChange.bind(this)
+		this.backUp = this.backUp.bind(this)
+		this.update = this.update.bind(this)
+    }
+    getDistanceSum(){
+        return this.props.ctr.getSum()
+    }
+    deleteRecord(id) {
+		const convertedId = Number(id)
+        this.props.ctr.deleter(convertedId)
+        this.setState({result:
+                        this.props.ctr.get()
+        })
+    }
+    save(){
+        this.props.ctr.save()
+    }
+	sortHigh(){
+		this.props.ctr.sortHigh()
+		this.setState({result:
+                        this.props.ctr.get()
+        })
+	}
+	sortLow(){
+		this.props.ctr.sortLow()
+		this.setState({result:
+                        this.props.ctr.get()
+        })
+	}
+    load(){
+        this.props.ctr.load()
+        this.setState({result:
+                        this.props.ctr.get()
+        })
+    }
+	backUp(recordID){
+		const rowIndex = this.state.result.findIndex(element => element.id == Number(recordID))
+		this.props.ctr.backUp(rowIndex)
+	}
+	update(recordID){
+		const rowIndex = this.state.result.findIndex(element => element.id == Number(recordID))
+		let tripName = this.state.tripName
+		let date = this.state.date
+		let terrain = this.state.terrain
+		let distance = this.state.distance
+		let time = this.state.targetTimeFinished
+		let completion = Boolean(this.state.done)
+		if (tripName == "")
+		{
+			tripName = this.state.result[rowIndex].tripName
+		}
+		else
+		{
+			tripName = tripName
+		}
+		
+		if (date == "")
+		{
+			date = this.state.result[rowIndex].date
+		}
+		else
+		{
+			date = date
+		}
+		
+		if (terrain == "")
+		{
+			terrain = this.state.result[rowIndex].terrain
+		}
+		else
+		{
+			terrain = terrain
+		}
+		
+		if (distance == "")
+		{
+			distance = this.state.result[rowIndex].distance
+		}
+		else
+		{
+			distance = distance
+		}
+		
+		if (time == "")
+		{
+			time = this.state.result[rowIndex].targetTimeFinished
+		}
+		else
+		{
+			time = time
+		}
+		
+		if (completion == "")
+		{
+			completion = this.state.result[rowIndex].done
+		}
+		if (Boolean(completion) === true || Boolean(completion) === false){
+			completion = Boolean(completion)
+		}
+		else{
+			console.log(completion)
+			this.setState({errors:'error'})
+		}
+		this.props.ctr.update(Number(rowIndex),tripName,date,terrain,Number(distance),Number(time),Boolean(completion))
+		this.setState({result:this.props.ctr.get()})
+	}
+	
+	discard = (recordID) => {
+		const rowIndex = this.state.result.findIndex(element => element.id == Number(recordID))
+		this.props.ctr.discard(this.state.result[rowIndex])
+		this.setState({result:this.props.ctr.get()})
+	}
+	
+	handleChange(event){
+		this.setState({[event.target.name]:event.target.value})
+	}
+
+    handleSubmit(e){
+        e.preventDefault()
+        let tripName = document.getElementById("tripName").value
+        let date = document.getElementById("date").value
+        let terrain = document.getElementById("terrain").value
+        let distance = document.getElementById("distance").value
+        let time = document.getElementById("time").value
+        // add to controller
+        this.props.ctr.add(tripName,date,terrain,distance,time)
+        // const arrlength = desarray.length - 1
+        this.setState({result:
+                        this.props.ctr.get()
+        })
+	
+	let reset = () => {
+		document.getElementById("Form").reset()
+	}
+
+    }
+    render(){
+        return(<section>
+        <form id="Form" onSubmit={this.handleSubmit}>
+            <label htmlFor="tripName">Trip Name</label>
+            <input id="tripName"></input>
+            <br/>
+            <label htmlFor="date">Date</label>
+            <input id="date"></input>
+            <br/>
+            <label htmlFor="terrain">Terrain</label>
+            <input id="terrain"></input>
+            <br/>
+            <label htmlFor="distance">Distance</label>
+            <input id="distance"></input>
+            <br/>
+            <label htmlFor="time">Time</label>
+            <input id="time"></input>
+            <br/>
+            <button type="submit">Add</button>
+			<button onClick={() => this.reset} type="reset"> Reset</button>
+        </form>
+		
+				  <h1>Result</h1>
+				<div>
+				  <input type="button" value="Save" onClick={this.save}/>
+				  <input type="button" value="Reload" onClick={this.load}/>
+				  <input type="button" value="Sort Trip by high to low" onClick={this.sortHigh}/>
+				  <input type="button" value="Sort Trip by low to high" onClick={this.sortLow}/>
+				  <p>Total Distance Travelled: {this.getDistanceSum()}</p>
+					<table>
+					<thead>
+						<tr>
+							<th>Trip Name</th>
+							<th>Date</th>
+							<th>Terrain</th>
+							<th>Distance</th>
+							<th>Target Time Finished</th>
+							<th>Speed</th>
+							<th>Is it Completed?</th>
+							<th>Delete</th>
+							<th>Backup</th>
+							<th>Discard</th>
+							<th>Update</th>
+						</tr>
+					</thead>
+					<tbody>
+					{this.state.result.map(d => (
+						<tr key={Number(d.id)} onChange={this.handleChange}>
+							<td><input name="tripName" id="tripName" onChange={this.handleChange} defaultValue={d.tripName}/></td>
+							<td><input name="date" id="date" target="_blank" onChange={this.handleChange} defaultValue={d.date}/></td>
+							<td><input name="terrain" id="terrain" target="_blank" onChange={this.handleChange} defaultValue={d.terrain}/></td>
+							<td><input name="distance" id="distance" target="_blank" onChange={this.handleChange} defaultValue={d.distance}/></td>
+							<td><input name="targetTimeFinished" id="time" target="_blank" onChange={this.handleChange} defaultValue={d.targetTimeFinished}/></td>
+							<td><input name="speed" id="speed" target="_blank" readOnly value={d.estimatedSpeed}/></td>
+							<td><input name="done" id="completed" target="_blank" onChange={this.handleChange} defaultValue={Boolean(d.done)}/></td>
+							<td><input type="button" target="_blank" value="Delete" onClick={this.deleteRecord.bind(this,d.id)}/></td>
+							<td><input type="button" target="_blank" onChange={this.handleChange} value="Back Up" onClick={this.backUp.bind(this,d.id)}/></td>
+							<td><input type="button" target="_blank" onChange={this.handleChange} value="Discard Update" onClick={() => this.discard(d.id)}/></td>
+							<td><input type="button" target="_blank" onChange={this.handleChange} value="Update" onClick={this.update.bind(this,d.id)}/></td>
+						</tr>
+					))}
+					</tbody>
+					</table>
+				</div>
+    </section>)
+    }
+}
+
+
+
+
+var cyclist = undefined, controller = undefined
+
+let start = () => {
+    cyclist = new Cyclist()
+    controller = new Controller(cyclist)
+
+    const element = <PlannerView ctr={controller} />
+    ReactDOM.render(
+    element,
+    document.getElementById('app')
+    )
+}
+
+window.onload = start
+  </script>
+
+</body>
+
+</html>
